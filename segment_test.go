@@ -68,6 +68,8 @@ func TestSegment(t *testing.T) {
 		require.NoError(t, r.Error())
 
 		assert.Equal(t, "test data", string(r.Value()))
+
+		assert.NotEqual(t, 0, r.CRC())
 	})
 
 	n.It("can report it's position and truncate to it", func() {
