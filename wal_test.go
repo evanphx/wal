@@ -3,8 +3,10 @@ package wal
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vektra/neko"
 )
@@ -17,7 +19,163 @@ func TestWal(t *testing.T) {
 
 	defer os.RemoveAll(dir)
 
+	path := filepath.Join(dir, "wal")
+
+	n.Setup(func() {
+		os.RemoveAll(path)
+	})
+
 	n.It("writes data to the disk", func() {
+		wal, err := New(path)
+		require.NoError(t, err)
+
+		data := []byte("this is data")
+
+		err = wal.Write(data)
+		require.NoError(t, err)
+
+		seg2, err := OpenSegment(wal.current)
+		require.NoError(t, err)
+
+		defer seg2.Close()
+
+		r, err := NewSegmentReader(wal.current)
+		require.NoError(t, err)
+
+		assert.True(t, r.Next())
+
+		require.NoError(t, r.Error())
+
+		assert.Equal(t, "this is data", string(r.Value()))
+
+		assert.NotEqual(t, 0, r.CRC())
+	})
+
+	n.It("can rotate in a new segment", func() {
+		wal, err := New(path)
+		require.NoError(t, err)
+
+		data := []byte("this is data")
+
+		err = wal.Write(data)
+		require.NoError(t, err)
+
+		err = wal.rotateSegment()
+		require.NoError(t, err)
+
+		err = wal.Write([]byte("in the second segment"))
+		require.NoError(t, err)
+
+		seg2, err := OpenSegment(wal.current)
+		require.NoError(t, err)
+
+		defer seg2.Close()
+
+		r, err := NewSegmentReader(wal.current)
+		require.NoError(t, err)
+
+		assert.True(t, r.Next())
+
+		require.NoError(t, r.Error())
+
+		assert.Equal(t, "in the second segment", string(r.Value()))
+
+		assert.NotEqual(t, 0, r.CRC())
+	})
+
+	n.It("can rotate in a new segment", func() {
+		wal, err := New(path)
+		require.NoError(t, err)
+
+		data := []byte("this is data")
+
+		err = wal.Write(data)
+		require.NoError(t, err)
+
+		err = wal.rotateSegment()
+		require.NoError(t, err)
+
+		err = wal.Write([]byte("in the second segment"))
+		require.NoError(t, err)
+
+		seg2, err := OpenSegment(wal.current)
+		require.NoError(t, err)
+
+		defer seg2.Close()
+
+		r, err := NewSegmentReader(wal.current)
+		require.NoError(t, err)
+
+		assert.True(t, r.Next())
+
+		require.NoError(t, r.Error())
+
+		assert.Equal(t, "in the second segment", string(r.Value()))
+
+		assert.NotEqual(t, 0, r.CRC())
+	})
+
+	n.It("supports asking for and seeking to a position", func() {
+		wal, err := New(path)
+		require.NoError(t, err)
+
+		data := []byte("this is data")
+
+		err = wal.Write(data)
+		require.NoError(t, err)
+
+		pos, err := wal.Pos()
+		require.NoError(t, err)
+
+		err = wal.Write([]byte("more data"))
+		require.NoError(t, err)
+
+		err = wal.Close()
+		require.NoError(t, err)
+
+		r, err := NewReader(path)
+		require.NoError(t, err)
+
+		err = r.Seek(pos)
+		require.NoError(t, err)
+
+		assert.True(t, r.Next())
+
+		assert.Equal(t, "more data", string(r.Value()))
+	})
+
+	n.It("continues in the same segment when reopened", func() {
+		wal, err := New(path)
+		require.NoError(t, err)
+
+		data := []byte("this is data")
+
+		err = wal.Write(data)
+		require.NoError(t, err)
+
+		err = wal.Close()
+
+		wal, err = New(path)
+		require.NoError(t, err)
+
+		data = []byte("more data")
+
+		err = wal.Write(data)
+		require.NoError(t, err)
+
+		err = wal.Close()
+
+		r, err := NewReader(path)
+		require.NoError(t, err)
+
+		require.True(t, r.Next())
+
+		assert.Equal(t, "this is data", string(r.Value()))
+
+		assert.True(t, r.Next())
+		require.NoError(t, r.seg.Error())
+
+		assert.Equal(t, "more data", string(r.Value()))
 	})
 
 	n.Meow()

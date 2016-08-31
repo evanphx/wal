@@ -26,7 +26,7 @@ func TestSegment(t *testing.T) {
 	})
 
 	n.It("writes data to a segment file", func() {
-		segment, err := NewSegment(path)
+		segment, err := OpenSegment(path)
 		require.NoError(t, err)
 
 		defer segment.Close()
@@ -46,7 +46,7 @@ func TestSegment(t *testing.T) {
 	})
 
 	n.It("allows for iteration of the contents", func() {
-		segment, err := NewSegment(path)
+		segment, err := OpenSegment(path)
 		require.NoError(t, err)
 
 		_, err = segment.Write([]byte("test data"))
@@ -55,13 +55,10 @@ func TestSegment(t *testing.T) {
 		err = segment.Close()
 		require.NoError(t, err)
 
-		seg2, err := OpenSegment(path)
+		r, err := NewSegmentReader(path)
 		require.NoError(t, err)
 
-		defer seg2.Close()
-
-		r, err := seg2.NewReader()
-		require.NoError(t, err)
+		defer r.Close()
 
 		assert.True(t, r.Next())
 
@@ -73,7 +70,7 @@ func TestSegment(t *testing.T) {
 	})
 
 	n.It("can report it's position and truncate to it", func() {
-		segment, err := NewSegment(path)
+		segment, err := OpenSegment(path)
 		require.NoError(t, err)
 
 		defer segment.Close()
@@ -92,13 +89,10 @@ func TestSegment(t *testing.T) {
 		err = segment.Close()
 		require.NoError(t, err)
 
-		seg2, err := OpenSegment(path)
+		r, err := NewSegmentReader(path)
 		require.NoError(t, err)
 
-		defer seg2.Close()
-
-		r, err := seg2.NewReader()
-		require.NoError(t, err)
+		defer r.Close()
 
 		assert.True(t, r.Next())
 
@@ -107,8 +101,40 @@ func TestSegment(t *testing.T) {
 		assert.False(t, r.Next())
 	})
 
+	n.It("can report it's position and seek to it", func() {
+		segment, err := OpenSegment(path)
+		require.NoError(t, err)
+
+		defer segment.Close()
+
+		_, err = segment.Write([]byte("test data"))
+		require.NoError(t, err)
+
+		pos := segment.Pos()
+
+		_, err = segment.Write([]byte("more data"))
+		require.NoError(t, err)
+
+		err = segment.Close()
+		require.NoError(t, err)
+
+		r, err := NewSegmentReader(path)
+		require.NoError(t, err)
+
+		defer r.Close()
+
+		err = r.Seek(pos)
+		require.NoError(t, err)
+
+		assert.True(t, r.Next())
+
+		assert.Equal(t, "more data", string(r.Value()))
+
+		assert.False(t, r.Next())
+	})
+
 	n.It("knows if the segment was propely closed or not", func() {
-		segment, err := NewSegment(path)
+		segment, err := OpenSegment(path)
 		require.NoError(t, err)
 
 		defer segment.Close()
@@ -131,6 +157,39 @@ func TestSegment(t *testing.T) {
 		defer seg2.Close()
 
 		assert.True(t, seg2.Clean())
+	})
+
+	n.It("can track the position of a tag", func() {
+		segment, err := OpenSegment(path)
+		require.NoError(t, err)
+
+		defer segment.Close()
+
+		_, err = segment.Write([]byte("test data"))
+		require.NoError(t, err)
+
+		pos := segment.Pos()
+
+		err = segment.WriteTag([]byte("test"))
+		require.NoError(t, err)
+
+		_, err = segment.Write([]byte("more test data"))
+		require.NoError(t, err)
+
+		segment.Close()
+
+		r, err := NewSegmentReader(path)
+		require.NoError(t, err)
+
+		pos, err = r.TagPos([]byte("test"))
+		require.NoError(t, err)
+
+		err = r.Seek(pos)
+		require.NoError(t, err)
+
+		assert.True(t, r.Next())
+
+		assert.Equal(t, "more test data", string(r.Value()))
 	})
 
 	n.Meow()
