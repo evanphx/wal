@@ -20,6 +20,8 @@ type SegmentWriter struct {
 	sbuf  []byte
 	clean bool
 
+	size int64
+
 	cs hash.Hash32
 }
 
@@ -29,9 +31,20 @@ func createSegment(f *os.File) (*SegmentWriter, error) {
 	buf := make([]byte, bufferSize)
 	sbuf := make([]byte, 32)
 
-	seg := &SegmentWriter{f, buf, sbuf, false, crc32.NewIEEE()}
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
 
-	err := seg.calculateClean()
+	seg := &SegmentWriter{
+		f:    f,
+		buf:  buf,
+		sbuf: sbuf,
+		size: stat.Size(),
+		cs:   crc32.NewIEEE(),
+	}
+
+	err = seg.calculateClean()
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +70,10 @@ func (s *SegmentWriter) Close() error {
 	}
 
 	return s.f.Close()
+}
+
+func (s *SegmentWriter) Size() int64 {
+	return s.size
 }
 
 func (s *SegmentWriter) calculateClean() error {
@@ -128,6 +145,8 @@ func (s *SegmentWriter) writeType(t byte, data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	s.size += int64(5 + n + len(out))
 
 	return len(data), nil
 }
@@ -248,7 +267,7 @@ func (r *SegmentReader) Seek(pos int64) error {
 	return nil
 }
 
-func (r *SegmentReader) TagPos(tag []byte) (int64, error) {
+func (r *SegmentReader) SeekTag(tag []byte) (int64, error) {
 	var lastPos int64 = -1
 
 	for {
@@ -271,6 +290,13 @@ func (r *SegmentReader) TagPos(tag []byte) (int64, error) {
 			if bytes.Equal(plain, tag) {
 				lastPos = pos
 			}
+		}
+	}
+
+	if lastPos != -1 {
+		err := r.Seek(lastPos)
+		if err != nil {
+			return 0, err
 		}
 	}
 

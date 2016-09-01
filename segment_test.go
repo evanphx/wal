@@ -181,11 +181,10 @@ func TestSegment(t *testing.T) {
 		r, err := NewSegmentReader(path)
 		require.NoError(t, err)
 
-		pos, err = r.TagPos([]byte("test"))
+		tagPos, err := r.SeekTag([]byte("test"))
 		require.NoError(t, err)
 
-		err = r.Seek(pos)
-		require.NoError(t, err)
+		assert.Equal(t, pos, tagPos)
 
 		assert.True(t, r.Next())
 
