@@ -25,7 +25,7 @@ type tagCache struct {
 	Tags map[string]Position `json:"tags"`
 }
 
-type WAL struct {
+type WALWriter struct {
 	opts WriteOptions
 
 	lock    sync.Mutex
@@ -76,11 +76,11 @@ func rangeSegments(path string) (int, int, error) {
 	return first, last, nil
 }
 
-func New(root string) (*WAL, error) {
+func New(root string) (*WALWriter, error) {
 	return NewWithOptions(root, DefaultWriteOptions)
 }
 
-func NewWithOptions(root string, opts WriteOptions) (*WAL, error) {
+func NewWithOptions(root string, opts WriteOptions) (*WALWriter, error) {
 	err := os.Mkdir(root, 0755)
 	if err != nil {
 		if !os.IsExist(err) {
@@ -97,12 +97,16 @@ func NewWithOptions(root string, opts WriteOptions) (*WAL, error) {
 		last = 0
 	}
 
+	if first == -1 {
+		first = 0
+	}
+
 	cache, err := os.Create(filepath.Join(root, "tags"))
 	if err != nil {
 		return nil, err
 	}
 
-	wal := &WAL{
+	wal := &WALWriter{
 		root:      root,
 		current:   filepath.Join(root, fmt.Sprintf("%d", last)),
 		first:     first,
@@ -124,7 +128,7 @@ func NewWithOptions(root string, opts WriteOptions) (*WAL, error) {
 	return wal, nil
 }
 
-func (wal *WAL) rotateSegment() error {
+func (wal *WALWriter) rotateSegment() error {
 	err := wal.segment.Close()
 	if err != nil {
 		return err
@@ -144,7 +148,7 @@ func (wal *WAL) rotateSegment() error {
 	return nil
 }
 
-func (wal *WAL) pruneSegments(total int) error {
+func (wal *WALWriter) pruneSegments(total int) error {
 	startAt := wal.index - total
 
 	for i := startAt; i >= wal.first; i-- {
@@ -159,7 +163,7 @@ func (wal *WAL) pruneSegments(total int) error {
 
 const averageOverhead = 4 + 1 + 2
 
-func (wal *WAL) Write(data []byte) error {
+func (wal *WALWriter) Write(data []byte) error {
 	wal.lock.Lock()
 	defer wal.lock.Unlock()
 
@@ -186,7 +190,7 @@ type Position struct {
 	Offset  int64 `json:"offset"`
 }
 
-func (wal *WAL) Pos() (Position, error) {
+func (wal *WALWriter) Pos() (Position, error) {
 	wal.lock.Lock()
 	defer wal.lock.Unlock()
 
@@ -195,7 +199,7 @@ func (wal *WAL) Pos() (Position, error) {
 	return Position{wal.index, pos}, nil
 }
 
-func (wal *WAL) WriteTag(tag []byte) error {
+func (wal *WALWriter) WriteTag(tag []byte) error {
 	wal.lock.Lock()
 	defer wal.lock.Unlock()
 
@@ -224,7 +228,7 @@ func (wal *WAL) WriteTag(tag []byte) error {
 	return nil
 }
 
-func (wal *WAL) Close() error {
+func (wal *WALWriter) Close() error {
 	return wal.segment.Close()
 }
 
