@@ -26,7 +26,7 @@ func TestSegment(t *testing.T) {
 	})
 
 	n.It("writes data to a segment file", func() {
-		segment, err := OpenSegment(path)
+		segment, err := NewSegmentWriter(path)
 		require.NoError(t, err)
 
 		defer segment.Close()
@@ -46,7 +46,7 @@ func TestSegment(t *testing.T) {
 	})
 
 	n.It("allows for iteration of the contents", func() {
-		segment, err := OpenSegment(path)
+		segment, err := NewSegmentWriter(path)
 		require.NoError(t, err)
 
 		_, err = segment.Write([]byte("test data"))
@@ -70,7 +70,7 @@ func TestSegment(t *testing.T) {
 	})
 
 	n.It("can report it's position and truncate to it", func() {
-		segment, err := OpenSegment(path)
+		segment, err := NewSegmentWriter(path)
 		require.NoError(t, err)
 
 		defer segment.Close()
@@ -102,7 +102,7 @@ func TestSegment(t *testing.T) {
 	})
 
 	n.It("can report it's position and seek to it", func() {
-		segment, err := OpenSegment(path)
+		segment, err := NewSegmentWriter(path)
 		require.NoError(t, err)
 
 		defer segment.Close()
@@ -134,7 +134,7 @@ func TestSegment(t *testing.T) {
 	})
 
 	n.It("knows if the segment was propely closed or not", func() {
-		segment, err := OpenSegment(path)
+		segment, err := NewSegmentWriter(path)
 		require.NoError(t, err)
 
 		defer segment.Close()
@@ -142,7 +142,7 @@ func TestSegment(t *testing.T) {
 		_, err = segment.Write([]byte("test data"))
 		require.NoError(t, err)
 
-		seg2, err := OpenSegment(path)
+		seg2, err := NewSegmentWriter(path)
 		require.NoError(t, err)
 
 		assert.False(t, seg2.Clean())
@@ -151,7 +151,7 @@ func TestSegment(t *testing.T) {
 
 		require.NoError(t, segment.Close())
 
-		seg2, err = OpenSegment(path)
+		seg2, err = NewSegmentWriter(path)
 		require.NoError(t, err)
 
 		defer seg2.Close()
@@ -160,7 +160,7 @@ func TestSegment(t *testing.T) {
 	})
 
 	n.It("can track the position of a tag", func() {
-		segment, err := OpenSegment(path)
+		segment, err := NewSegmentWriter(path)
 		require.NoError(t, err)
 
 		defer segment.Close()

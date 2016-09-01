@@ -118,7 +118,7 @@ func NewWithOptions(root string, opts WriteOptions) (*WALWriter, error) {
 
 	wal.cache.Tags = make(map[string]Position)
 
-	seg, err := OpenSegment(wal.current)
+	seg, err := NewSegmentWriter(wal.current)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (wal *WALWriter) rotateSegment() error {
 
 	wal.current = filepath.Join(wal.root, fmt.Sprintf("%d", wal.index))
 
-	seg, err := OpenSegment(wal.current)
+	seg, err := NewSegmentWriter(wal.current)
 	if err != nil {
 		return err
 	}

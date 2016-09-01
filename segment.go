@@ -52,7 +52,7 @@ func createSegment(f *os.File) (*SegmentWriter, error) {
 	return seg, nil
 }
 
-func OpenSegment(path string) (*SegmentWriter, error) {
+func NewSegmentWriter(path string) (*SegmentWriter, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err

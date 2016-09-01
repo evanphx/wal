@@ -36,7 +36,7 @@ func TestWal(t *testing.T) {
 		err = wal.Write(data)
 		require.NoError(t, err)
 
-		seg2, err := OpenSegment(wal.current)
+		seg2, err := NewSegmentWriter(wal.current)
 		require.NoError(t, err)
 
 		defer seg2.Close()
@@ -68,7 +68,7 @@ func TestWal(t *testing.T) {
 		err = wal.Write([]byte("in the second segment"))
 		require.NoError(t, err)
 
-		seg2, err := OpenSegment(wal.current)
+		seg2, err := NewSegmentWriter(wal.current)
 		require.NoError(t, err)
 
 		defer seg2.Close()
