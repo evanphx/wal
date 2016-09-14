@@ -200,6 +200,10 @@ type Position struct {
 	Offset  int64 `json:"offset"`
 }
 
+func (p *Position) None() bool {
+	return p.Segment == -1
+}
+
 func (wal *WALWriter) Pos() (Position, error) {
 	wal.lock.Lock()
 	defer wal.lock.Unlock()
@@ -252,36 +256,60 @@ type WALReader struct {
 
 	seg *SegmentReader
 
+	lastSegPos int64
+
 	err error
 }
 
 var ErrNoSegments = errors.New("no segments")
 
 func NewReader(root string) (*WALReader, error) {
-	first, last, err := rangeSegments(root)
+	r := &WALReader{root: root}
+
+	err := r.Reset()
 	if err != nil {
 		return nil, err
+	}
+
+	return r, nil
+}
+
+func (wal *WALReader) Reset() error {
+	if wal.seg != nil {
+		wal.seg.Close()
+	}
+
+	first, last, err := rangeSegments(wal.root)
+	if err != nil {
+		return err
 	}
 
 	if first == -1 {
-		return nil, ErrNoSegments
+		return ErrNoSegments
 	}
 
-	cur := filepath.Join(root, fmt.Sprintf("%d", first))
+	cur := filepath.Join(wal.root, fmt.Sprintf("%d", first))
 
 	r, err := NewSegmentReader(cur)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &WALReader{
-		root:    root,
-		current: cur,
-		first:   first,
-		last:    last,
-		index:   first,
-		seg:     r,
-	}, nil
+	wal.current = cur
+	wal.first = first
+	wal.last = last
+	wal.index = first
+	wal.seg = r
+
+	return nil
+}
+
+func (wal *WALReader) Pos() (Position, error) {
+	if wal.seg == nil {
+		return Position{wal.index, wal.lastSegPos}, nil
+	}
+
+	return Position{wal.index, wal.seg.Pos()}, nil
 }
 
 func (wal *WALReader) Seek(p Position) error {
@@ -329,7 +357,9 @@ func (wal *WALReader) SeekTag(tag []byte) (Position, error) {
 			return lastPos, err
 		}
 
-		lastPos = Position{index, pos}
+		if pos >= 0 {
+			lastPos = Position{index, pos}
+		}
 
 		index++
 	}
@@ -354,12 +384,16 @@ func (r *WALReader) Next() bool {
 		return true
 	}
 
+	r.lastSegPos = r.seg.Pos()
 	r.seg.Close()
 	r.seg = nil
 
 	for {
 		r.index++
 		if r.index > r.last {
+			// This is so that Pos() returns the final segment index
+			// rather than one past it.
+			r.index = r.last
 			return false
 		}
 

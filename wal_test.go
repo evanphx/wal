@@ -36,11 +36,6 @@ func TestWal(t *testing.T) {
 		err = wal.Write(data)
 		require.NoError(t, err)
 
-		seg2, err := NewSegmentWriter(wal.current)
-		require.NoError(t, err)
-
-		defer seg2.Close()
-
 		r, err := NewSegmentReader(wal.current)
 		require.NoError(t, err)
 
@@ -67,11 +62,6 @@ func TestWal(t *testing.T) {
 
 		err = wal.Write([]byte("in the second segment"))
 		require.NoError(t, err)
-
-		seg2, err := NewSegmentWriter(wal.current)
-		require.NoError(t, err)
-
-		defer seg2.Close()
 
 		r, err := NewSegmentReader(wal.current)
 		require.NoError(t, err)
@@ -156,6 +146,38 @@ func TestWal(t *testing.T) {
 		assert.True(t, r.Next())
 
 		assert.Equal(t, "more data", string(r.Value()))
+	})
+
+	n.It("provides the position despite having no more segments", func() {
+		wal, err := New(path)
+		require.NoError(t, err)
+
+		data := []byte("this is data")
+
+		err = wal.Write(data)
+		require.NoError(t, err)
+
+		pos, err := wal.Pos()
+		require.NoError(t, err)
+
+		err = wal.Close()
+		require.NoError(t, err)
+
+		r, err := NewReader(path)
+		require.NoError(t, err)
+
+		assert.True(t, r.Next())
+
+		assert.Equal(t, "this is data", string(r.Value()))
+
+		assert.False(t, r.Next())
+
+		assert.Nil(t, r.seg)
+
+		cur, err := r.Pos()
+		require.NoError(t, err)
+
+		assert.Equal(t, pos, cur)
 	})
 
 	n.It("continues in the same segment when reopened", func() {
