@@ -9,11 +9,17 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type WriteOptions struct {
 	MaxSize     int64
 	MaxSegments int
+
+	// If 0, sync is done after every write. Otherwise this controls
+	// how often the WAL is sync'd to disk. Setting this can speed
+	// up the WAL by sacrifing safety.
+	SyncRate time.Duration
 }
 
 var DefaultWriteOptions = WriteOptions{
@@ -124,6 +130,10 @@ func NewWithOptions(root string, opts WriteOptions) (*WALWriter, error) {
 	}
 
 	wal.segment = seg
+
+	if opts.SyncRate > 0 {
+		seg.SetSyncRate(opts.SyncRate)
+	}
 
 	return wal, nil
 }

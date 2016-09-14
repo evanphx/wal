@@ -8,6 +8,10 @@ import (
 	"hash"
 	"hash/crc32"
 	"io"
+	"sync/atomic"
+	"time"
+
+	tomb "gopkg.in/tomb.v2"
 
 	"os"
 
@@ -20,9 +24,13 @@ type SegmentWriter struct {
 	sbuf  []byte
 	clean bool
 
-	size int64
+	size *int64
 
 	cs hash.Hash32
+
+	t        tomb.Tomb
+	syncRate time.Duration
+	bgSync   bool
 }
 
 const bufferSize = 16 * 1024
@@ -31,23 +39,20 @@ func createSegment(f *os.File) (*SegmentWriter, error) {
 	buf := make([]byte, bufferSize)
 	sbuf := make([]byte, 32)
 
-	stat, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-
 	seg := &SegmentWriter{
 		f:    f,
 		buf:  buf,
 		sbuf: sbuf,
-		size: stat.Size(),
 		cs:   crc32.NewIEEE(),
+		size: new(int64),
 	}
 
-	err = seg.calculateClean()
+	err := seg.calculateClean()
 	if err != nil {
 		return nil, err
 	}
+
+	*seg.size = seg.diskPos()
 
 	return seg, nil
 }
@@ -61,9 +66,45 @@ func NewSegmentWriter(path string) (*SegmentWriter, error) {
 	return createSegment(f)
 }
 
+func (s *SegmentWriter) SetSyncRate(dur time.Duration) {
+	s.bgSync = true
+	s.syncRate = dur
+	s.t.Go(s.syncEvery)
+}
+
+func (s *SegmentWriter) syncEvery() error {
+	tick := time.NewTicker(s.syncRate)
+	defer tick.Stop()
+
+	before := atomic.LoadInt64(s.size)
+
+	for {
+		select {
+		case <-tick.C:
+			cur := atomic.LoadInt64(s.size)
+
+			if cur != before {
+				s.f.Sync()
+			}
+
+			before = cur
+		case <-s.t.Dying():
+			s.f.Sync()
+			return nil
+		}
+	}
+
+	return nil
+}
+
 var closingMagic = []byte("\x00this segment was closed properly\x42")
 
 func (s *SegmentWriter) Close() error {
+	if s.bgSync {
+		s.t.Kill(nil)
+		s.t.Wait()
+	}
+
 	_, err := s.f.Write(closingMagic)
 	if err != nil {
 		return err
@@ -73,7 +114,7 @@ func (s *SegmentWriter) Close() error {
 }
 
 func (s *SegmentWriter) Size() int64 {
-	return s.size
+	return atomic.LoadInt64(s.size)
 }
 
 func (s *SegmentWriter) calculateClean() error {
@@ -141,12 +182,16 @@ func (s *SegmentWriter) writeType(t byte, data []byte) (int, error) {
 		return 0, err
 	}
 
-	err = s.f.Sync()
-	if err != nil {
-		return 0, err
+	if !s.bgSync {
+		err = s.f.Sync()
+		if err != nil {
+			return 0, err
+		}
 	}
 
-	s.size += int64(5 + n + len(out))
+	entry := int64(5 + n + len(out))
+
+	atomic.AddInt64(s.size, entry)
 
 	return len(data), nil
 }
@@ -160,13 +205,17 @@ func (s *SegmentWriter) WriteTag(data []byte) error {
 	return err
 }
 
-func (s *SegmentWriter) Pos() int64 {
+func (s *SegmentWriter) diskPos() int64 {
 	pos, err := s.f.Seek(0, os.SEEK_CUR)
 	if err != nil {
 		panic(err)
 	}
 
 	return pos
+}
+
+func (s *SegmentWriter) Pos() int64 {
+	return atomic.LoadInt64(s.size)
 }
 
 func (s *SegmentWriter) Truncate(pos int64) error {
@@ -265,6 +314,10 @@ func (r *SegmentReader) Seek(pos int64) error {
 	r.r.Reset(r.f)
 
 	return nil
+}
+
+func (s *SegmentReader) Pos() int64 {
+	return s.pos
 }
 
 func (r *SegmentReader) SeekTag(tag []byte) (int64, error) {
