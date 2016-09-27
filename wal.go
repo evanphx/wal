@@ -13,7 +13,11 @@ import (
 )
 
 type WriteOptions struct {
-	MaxSize     int64
+	// The maximum size in bytes of each segment. When it reaches near this size,
+	// a new segment will be created.
+	SegmentSize int64
+
+	// The maximum number of segments to keep on disk.
 	MaxSegments int
 
 	// If 0, sync is done after every write. Otherwise this controls
@@ -22,9 +26,41 @@ type WriteOptions struct {
 	SyncRate time.Duration
 }
 
+const MaxSegmentSize = 16 * (1024 * 1024)
+
+// Defaults to using 160MB of disk
 var DefaultWriteOptions = WriteOptions{
-	MaxSize:     16 * (1024 * 1024),
+	SegmentSize: MaxSegmentSize,
 	MaxSegments: 10,
+}
+
+// Calculate the WriteOptions based on how much disk space the WAL
+// should consume in total. The true on disk size might be more
+// slightly more than this because the value is calculate against
+// MaxSegmentSize, which is 16MB. If you wish to use a larger segment
+// size (or more accurate one), then set SegmentSize and MaxSegments
+// directly.
+func (wo *WriteOptions) CalculateFromTotal(total int64) {
+	if wo.MaxSegments == 0 {
+		switch {
+		case total < MaxSegmentSize:
+			wo.MaxSegments = 1
+			wo.SegmentSize = total
+		default:
+			wo.SegmentSize = MaxSegmentSize
+
+			segments := total / wo.SegmentSize
+
+			// Round up, not down.
+			if total%wo.SegmentSize != 0 {
+				segments++
+			}
+
+			wo.MaxSegments = int(segments)
+		}
+	} else {
+		wo.SegmentSize = total / int64(wo.MaxSegments)
+	}
 }
 
 type tagCache struct {
@@ -179,7 +215,7 @@ func (wal *WALWriter) Write(data []byte) error {
 
 	newSize := int64(len(data)) + averageOverhead + wal.segment.Size()
 
-	if newSize > wal.opts.MaxSize {
+	if newSize > wal.opts.SegmentSize {
 		err := wal.rotateSegment()
 		if err != nil {
 			return err

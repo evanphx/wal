@@ -77,7 +77,7 @@ func TestWal(t *testing.T) {
 
 	n.It("automatically rotates to new segments", func() {
 		opts := DefaultWriteOptions
-		opts.MaxSize = 20
+		opts.SegmentSize = 20
 
 		wal, err := NewWithOptions(path, opts)
 		require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestWal(t *testing.T) {
 
 	n.It("removes segments when there would be too many", func() {
 		opts := DefaultWriteOptions
-		opts.MaxSize = 20
+		opts.SegmentSize = 20
 		opts.MaxSegments = 1
 
 		wal, err := NewWithOptions(path, opts)
