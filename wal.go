@@ -412,26 +412,28 @@ func (r *WALReader) Close() error {
 }
 
 func (r *WALReader) Next() bool {
-	if r.seg == nil {
-		return false
-	}
-
 	if r.seg.Next() {
 		return true
 	}
 
 	r.lastSegPos = r.seg.Pos()
-	r.seg.Close()
-	r.seg = nil
+	idx := r.index
 
 	for {
-		r.index++
-		if r.index > r.last {
-			// This is so that Pos() returns the final segment index
-			// rather than one past it.
-			r.index = r.last
-			return false
+		idx++
+		if idx > r.last {
+			_, last, err := rangeSegments(r.root)
+			if err != nil {
+				r.err = err
+				return false
+			}
+			r.last = last
+			if idx > r.last {
+				return false
+			}
 		}
+
+		r.index = idx
 
 		path := filepath.Join(r.root, fmt.Sprintf("%d", r.index))
 
@@ -442,6 +444,9 @@ func (r *WALReader) Next() bool {
 		}
 
 		if seg.Next() {
+			if r.seg != nil {
+				r.seg.Close()
+			}
 			r.seg = seg
 			break
 		}

@@ -172,8 +172,6 @@ func TestWal(t *testing.T) {
 
 		assert.False(t, r.Next())
 
-		assert.Nil(t, r.seg)
-
 		cur, err := r.Pos()
 		require.NoError(t, err)
 
