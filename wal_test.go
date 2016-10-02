@@ -521,5 +521,31 @@ func TestWal(t *testing.T) {
 		assert.Equal(t, pos, tc.Tags[key])
 	})
 
+	n.It("allows the reader to continue after hitting the end", func() {
+		wal, err := New(path)
+		require.NoError(t, err)
+
+		data := []byte("this is data")
+
+		err = wal.Write(data)
+		require.NoError(t, err)
+
+		r, err := NewReader(path)
+		require.NoError(t, err)
+
+		require.True(t, r.Next())
+
+		assert.Equal(t, "this is data", string(r.Value()))
+
+		require.False(t, r.Next())
+
+		err = wal.Write([]byte("more data"))
+		require.NoError(t, err)
+
+		require.True(t, r.Next())
+
+		assert.Equal(t, "more data", string(r.Value()))
+	})
+
 	n.Meow()
 }
