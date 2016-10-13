@@ -265,9 +265,10 @@ func (hr *hashReader) Read(b []byte) (int, error) {
 }
 
 type SegmentReader struct {
-	f   *os.File
-	r   *bufio.Reader
-	buf []byte
+	f    *os.File
+	r    *bufio.Reader
+	buf  []byte
+	buf2 []byte
 
 	value    []byte
 	valueCRC uint32
@@ -286,11 +287,13 @@ func NewSegmentReader(path string) (*SegmentReader, error) {
 
 	r := bufio.NewReader(f)
 	buf := make([]byte, bufferSize)
+	buf2 := make([]byte, bufferSize)
 	sr := &SegmentReader{
-		f:   f,
-		r:   r,
-		buf: buf,
-		cs:  crc32.NewIEEE(),
+		f:    f,
+		r:    r,
+		buf:  buf,
+		buf2: buf2,
+		cs:   crc32.NewIEEE(),
 	}
 
 	sr.hr.h = sr.cs
@@ -335,7 +338,7 @@ func (r *SegmentReader) SeekTag(tag []byte) (int64, error) {
 		}
 
 		if ent.entryType == tagType {
-			plain, err := snappy.Decode(r.buf, ent.value)
+			plain, err := snappy.Decode(r.buf2, ent.value)
 			if err != nil {
 				return 0, err
 			}
@@ -421,7 +424,7 @@ top:
 		goto top
 	}
 
-	r.value, err = snappy.Decode(r.buf, ent.value)
+	r.value, err = snappy.Decode(r.buf2, ent.value)
 	if err != nil {
 		r.err = err
 		return false
