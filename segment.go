@@ -335,7 +335,7 @@ func (r *SegmentReader) SeekTag(tag []byte) (int64, error) {
 		}
 
 		if ent.entryType == tagType {
-			plain, err := snappy.Decode(ent.value, ent.value)
+			plain, err := snappy.Decode(r.buf, ent.value)
 			if err != nil {
 				return 0, err
 			}
@@ -421,7 +421,7 @@ top:
 		goto top
 	}
 
-	r.value, err = snappy.Decode(ent.value, ent.value)
+	r.value, err = snappy.Decode(r.buf, ent.value)
 	if err != nil {
 		r.err = err
 		return false
