@@ -324,6 +324,8 @@ func (s *SegmentReader) Pos() int64 {
 }
 
 func (r *SegmentReader) SeekTag(tag []byte) (int64, error) {
+	r.err = nil
+
 	var lastPos int64 = -1
 
 	for {
@@ -333,6 +335,8 @@ func (r *SegmentReader) SeekTag(tag []byte) (int64, error) {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				break
 			}
+
+			r.err = err
 
 			return 0, err
 		}
@@ -410,10 +414,12 @@ func (r *SegmentReader) readNext() (e segmentEntry, err error) {
 }
 
 func (r *SegmentReader) Next() bool {
+	r.err = nil
+
 top:
 	ent, err := r.readNext()
 	if err != nil {
-		if err == io.EOF {
+		if err != io.EOF {
 			r.err = err
 		}
 
