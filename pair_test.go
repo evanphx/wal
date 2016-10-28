@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -29,8 +30,22 @@ func TestPair(t *testing.T) {
 		os.RemoveAll(path)
 	})
 
+	n.It("accepts write options", func() {
+		wo := WriteOptions{
+			SegmentSize: 128,
+			MaxSegments: 2,
+		}
+		_, w, err := NewPair(path, wo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(wo, w.opts) {
+			t.Fatalf("\nexpect:\n%v\n\nactual:\n%v", wo, w.opts)
+		}
+	})
+
 	n.It("exposes writes in the reader", func() {
-		r, w, err := NewPair(path)
+		r, w, err := NewPair(path, DefaultWriteOptions)
 		require.NoError(t, err)
 
 		err = w.Write([]byte("data1"))
@@ -42,7 +57,7 @@ func TestPair(t *testing.T) {
 	})
 
 	n.It("blocks waiting for more data", func() {
-		r, w, err := NewPair(path)
+		r, w, err := NewPair(path, DefaultWriteOptions)
 		require.NoError(t, err)
 
 		go func() {
@@ -65,7 +80,7 @@ func TestPair(t *testing.T) {
 	})
 
 	n.It("only blocks when there is no more data", func() {
-		r, w, err := NewPair(path)
+		r, w, err := NewPair(path, DefaultWriteOptions)
 		require.NoError(t, err)
 
 		err = w.Write([]byte("data1"))
@@ -77,7 +92,7 @@ func TestPair(t *testing.T) {
 	})
 
 	n.It("linearizes reads and writes", func() {
-		r, w, err := NewPair(path)
+		r, w, err := NewPair(path, DefaultWriteOptions)
 		require.NoError(t, err)
 
 		// Create a ton of input messages to write
