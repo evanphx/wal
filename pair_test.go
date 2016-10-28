@@ -119,7 +119,7 @@ func TestPair(t *testing.T) {
 				}
 
 				if !bytes.Equal(r.Value(), in[i]) {
-					t.Fatal("mismach found, probably a race: %v")
+					t.Fatal("mismach found, probably a race")
 				}
 			}
 		}()
