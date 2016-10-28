@@ -20,8 +20,8 @@ type PairedReader struct {
 	gen uint64
 }
 
-func NewPair(path string) (*PairedReader, *PairedWriter, error) {
-	w, err := New(path)
+func NewPair(path string, opts WriteOptions) (*PairedReader, *PairedWriter, error) {
+	w, err := NewWithOptions(path, opts)
 	if err != nil {
 		return nil, nil, err
 	}
