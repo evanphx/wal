@@ -71,6 +71,7 @@ func (r *PairedReader) BlockingNext() error {
 
 func (r *PairedWriter) Write(d []byte) error {
 	r.lock.Lock()
+	defer r.lock.Unlock()
 
 	err := r.WALWriter.Write(d)
 	if err != nil {
@@ -80,8 +81,6 @@ func (r *PairedWriter) Write(d []byte) error {
 	r.gen++
 
 	r.cond.Broadcast()
-
-	r.lock.Unlock()
 
 	return nil
 }
