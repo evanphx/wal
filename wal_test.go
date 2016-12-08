@@ -117,6 +117,52 @@ func TestWal(t *testing.T) {
 
 		_, err = os.Stat(filepath.Join(path, "0"))
 		require.Error(t, err)
+
+		assert.Equal(t, 1, wal.first)
+
+		err = wal.Write([]byte("in the third segment because this is a bigger value that goes over the max size limit"))
+		require.NoError(t, err)
+
+		assert.Equal(t, 2, wal.index)
+
+		_, err = os.Stat(filepath.Join(path, "1"))
+		require.Error(t, err)
+
+		assert.Equal(t, 2, wal.first)
+	})
+
+	n.It("removes segments when there would be too many (keep 2)", func() {
+		opts := DefaultWriteOptions
+		opts.SegmentSize = 20
+		opts.MaxSegments = 2
+
+		wal, err := NewWithOptions(path, opts)
+		require.NoError(t, err)
+
+		defer wal.Close()
+
+		data := []byte("this is data")
+
+		err = wal.Write(data)
+		require.NoError(t, err)
+
+		err = wal.Write([]byte("in the second segment because this is a bigger value that goes over the max size limit"))
+		require.NoError(t, err)
+
+		assert.Equal(t, 1, wal.index)
+
+		_, err = os.Stat(filepath.Join(path, "0"))
+		require.NoError(t, err)
+
+		err = wal.Write([]byte("in the third segment because this is a bigger value that goes over the max size limit"))
+		require.NoError(t, err)
+
+		assert.Equal(t, 2, wal.index)
+
+		_, err = os.Stat(filepath.Join(path, "0"))
+		require.Error(t, err)
+
+		assert.Equal(t, 1, wal.first)
 	})
 
 	n.It("supports asking for and seeking to a position", func() {

@@ -206,6 +206,9 @@ func (wal *WALWriter) pruneSegments(total int) error {
 		}
 	}
 
+	// Move the oldest horizon forward to our current first segment
+	wal.first = startAt + 1
+
 	return nil
 }
 
