@@ -200,7 +200,9 @@ func (wal *WALWriter) pruneSegments(total int) error {
 	for i := startAt; i >= wal.first; i-- {
 		err := os.Remove(filepath.Join(wal.root, fmt.Sprintf("%d", i)))
 		if err != nil {
-			return err
+			if !os.IsNotExist(err) {
+				return err
+			}
 		}
 	}
 
